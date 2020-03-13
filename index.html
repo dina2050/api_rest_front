@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="node_modules/bootstrap-toggle/css/bootstrap-toggle.min.css">
+</head>
+
+<body>
+    <button class="btn btn-primary createBtn" data-toggle="modal" data-target="#modalForm">Nouvelle light</button>
+    <div id="lights" class="container">
+        <div class='row'></div>
+    </div>
+
+    <script id="light-template" type="text/x-handlebars-template">
+        <div id="light-{{index}}" class='col-2 my-2 light'>
+            <div class='card text-center'>
+                <div class='card-img-top'>
+                    <i class='far fa-lightbulb fa-10x' data-color='{{light.color}}' {{#if light.state}}style="color:{{light.color}}"{{/if}}></i>
+                </div>
+                <div class='card-body'>
+                    <h5 class="card-title"> 
+                        Light # {{light.id}} 
+                        <button class="btn btn-primary updateBtn" data-toggle="modal" data-target="#modalForm" data-light-index="{{index}}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+
+                    </h5>
+                    <input class="lightSwitch" {{#if light.state}}checked{{/if}} type="checkbox" data-light-id="{{light.id}}">
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <div id="modalForm" class="modal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"></h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form action="">
+                        <input type="hidden" id="idInput" name="id">
+                        <input type="color" class="form-control" value="rgb(255, 255, 255)" />
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Enregister</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="node_modules/jquery/dist/jquery.min.js"></script>
+    <script src="node_modules/@popperjs/core/dist/umd/popper.min.js"></script>
+    <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="node_modules/bootstrap-toggle/js/bootstrap-toggle.min.js"></script>
+    <script src="node_modules/handlebars/dist/handlebars.min.js"></script>
+    <script>
+        $(document).ready(function () {
+
+            var lights = []
+
+
+            // DATA INITIALIZATION
+            var stateChoices = ["ON", "OFF"]
+            $.ajax({
+                url: 'http://127.0.0.1:8000/api/lights/',
+                type: 'get',
+                dataType: 'json',
+                success: function (response) {
+
+                    $.each(response, function (index, value) {
+
+                        lights.push(value)
+                        addLightToHTML(value, index);
+
+                    })
+                }
+            });
+
+
+            // END DATA INITIALIZATION
+
+            var lightTemplateSource = $("#light-template").html()
+            var lightTemplate = Handlebars.compile(lightTemplateSource);
+            function addLightToHTML(light, index) {
+                let lightHTML = lightTemplate({
+                    light: light,
+                    index: index
+                });
+                $("#lights .row").append(lightHTML)
+                let lightSwitch = $(".light").last().find('.lightSwitch')
+                console.log(lightSwitch)
+                lightSwitch.bootstrapToggle();
+                lightSwitch.change(function () {
+                    let lightId = $(this).data("light-id")
+                    let bulb = $(this).parents(".card").find(".fa-lightbulb");
+                    
+                    if ($(this).prop('checked')) {
+                        bulb.css('color', bulb.data('color'))
+                        state = true
+                    } else {
+                        bulb.css('color', 'black')
+                        state = false
+                    }
+                    $.ajax({
+                        url: 'http://127.0.0.1:8000/api/light/' + lightId + "/",
+                        method: 'put',
+                        data: {
+                            state: state,
+                        },
+                        dataType: 'json',
+                        success: function (data) {
+                            if (data.state = true) {
+                                console.log(data.id)
+                                
+                            } else {
+                               console.log("hello")
+                            }
+
+
+                        }
+                    });
+                })
+                $(".light").last().find('.updateBtn').click(function () {
+                    let lightIndex = $(this).data('light-index');
+                    let light = lights[lightIndex];
+                    $("#modalForm .modal-title").html(`Mise à jour de la light #${light.id}`)
+                    $("#modalForm input[type=color]").val(light.color)
+                    $("#modalForm input[id=idInput]").val(lightIndex)
+
+
+                    // WHEN SUBMITTING UPDATE FORM
+                    $("#modalForm button[type=submit]").off().click(function () {
+
+                        let lightIndex = $("#idInput").val();
+                        let color = $("#modalForm input[type=color]").val();
+
+                        lights[lightIndex].color = color;
+                        $.ajax({
+                            url: 'http://127.0.0.1:8000/api/light/' + lights[lightIndex].id + "/",
+                            method: 'put',
+                            data: {
+                                color: color,
+                            },
+                            dataType: 'json',
+                            success: function (data) {
+                                console.log(data.id)
+
+
+                            }
+                        });
+                        var bulb = $(`#light-${lightIndex}`).find(".fa-lightbulb")
+                        bulb.data('color', color)
+                        if (lights[lightIndex].state) {
+                            bulb.css('color', color)
+                        }
+                        $("#modalForm").modal('hide')
+                    })
+                })
+            }
+
+
+            $(".createBtn").click(function () {
+                $("#modalForm .modal-title").html("Création d'une light")
+                $("#modalForm input[type=color]").val("#FFFFFF")
+
+                // WHEN SUBMITTING UPDATE FORM
+
+                $("#modalForm button[type=submit]").off().click(function () {
+
+
+                    let newLight = {
+                        id: lights.length,
+                        color: $("#modalForm input[type=color]").val(),
+                        state: true
+                    }
+                    $.ajax({
+                        url: 'http://127.0.0.1:8000/api/light/',
+                        method: 'post',
+                        data: newLight,
+                        dataType: 'json',
+                        success: function (data) {
+                            lights.push(newLight);
+                            console.log(data.id)
+                            addLightToHTML(data, data.id);
+                            $("#modalForm").modal('hide');
+                        }
+                    });
+
+                })
+            })
+
+        });
+    </script>
+
+
+</body>
+
+</html>
